@@ -10,8 +10,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Hardcoded credentials
-  final String _correctEmail = 'student@tsss.edu.hk';
+  // Hardcoded credentials for both users
+  final String _studentEmail = 'student@tsss.edu.hk';
+  final String _chaplainEmail = 'chaplain@tsss.edu.hk';
   final String _correctPassword = '123456';
 
   final TextEditingController _emailController = TextEditingController();
@@ -24,14 +25,18 @@ class _LoginPageState extends State<LoginPage> {
       String email = _emailController.text;
       String password = _passwordController.text;
 
-      if (email == _correctEmail && password == _correctPassword) {
+      // Check if the email and password combination is correct
+      if ((email == _studentEmail || email == _chaplainEmail) &&
+          password == _correctPassword) {
         // If credentials are valid, navigate to AppointmentSystem screen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const AppointmentSystem()),
+          MaterialPageRoute(
+            builder: (context) => AppointmentSystem(loggedUserEmail: email),
+          ),
         );
       } else {
-        // Display an error message if login fails
+        // Display an error message if login fails.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid email or password')),
         );

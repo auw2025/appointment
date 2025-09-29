@@ -4,7 +4,9 @@ import 'appointment_model.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 class AppointmentSystem extends StatefulWidget {
-  const AppointmentSystem({Key? key}) : super(key: key);
+  final String loggedUserEmail;
+
+  const AppointmentSystem({Key? key, required this.loggedUserEmail}) : super(key: key);
 
   @override
   AppointmentSystemState createState() => AppointmentSystemState();
@@ -17,6 +19,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine which calendar(s) to show based on the loggedIn email
+    bool isStudent = widget.loggedUserEmail == 'student@tsss.edu.hk';
+    bool isChaplain = widget.loggedUserEmail == 'chaplain@tsss.edu.hk';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Appointment System'),
@@ -33,12 +39,20 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           ),
         ),
       ),
-      body: Row(
-        children: [
-          Expanded(child: _buildStudentCalendar()),
-          const VerticalDivider(thickness: 1),
-          Expanded(child: _buildTutorCalendar()),
-        ],
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            if (isStudent) ...[
+              _buildStudentCalendar(),
+              const Divider(
+                thickness: 2,
+                color: Colors.grey,
+                height: 40,
+              ),
+            ],
+            if (isChaplain) _buildTutorCalendar(),
+          ],
+        ),
       ),
     );
   }
@@ -71,92 +85,100 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Build the student calendar view.
   Widget _buildStudentCalendar() {
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: Text(
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        children: [
+          const Text(
             'Student Calendar',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-        ),
-        _buildCalendar(Colors.blueAccent),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.add),
-          label: const Text(
-            'Request Appointment',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          const SizedBox(height: 10),
+          _buildCalendar(Colors.blueAccent),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'Request Appointment',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            onPressed: () => _showRequestDialog(context),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                vertical: 16,
+                horizontal: 24,
+              ),
+              backgroundColor: Colors.blueAccent,
             ),
           ),
-          onPressed: () => _showRequestDialog(context),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(
-              vertical: 16,
-              horizontal: 24,
+          if (_rejectedRequests.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: _buildRejectedRequests(),
             ),
-            backgroundColor: Colors.blueAccent,
-          ),
-        ),
-        if (_rejectedRequests.isNotEmpty) _buildRejectedRequests(),
-      ],
+        ],
+      ),
     );
   }
 
-  /// Build the tutor calendar view.
+  /// Build the tutor (chaplain) calendar view.
   Widget _buildTutorCalendar() {
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: Text(
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        children: [
+          const Text(
             'Chaplain Calendar',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-        ),
-        _buildCalendar(Colors.deepPurple),
-        const SizedBox(height: 10),
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.deepPurple,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Text(
-            'Pending Appointment Requests',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          const SizedBox(height: 10),
+          _buildCalendar(Colors.deepPurple),
+          const SizedBox(height: 10),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Pending Appointment Requests',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _pendingRequests.length,
-            itemBuilder: (context, index) {
-              var request = _pendingRequests[index];
-              return Card(
-                child: ListTile(
-                  title: Text('Request from ${request.studentName}'),
-                  subtitle: Text('Time: ${request.startTime}'),
-                  trailing: _buildRequestActions(index),
-                ),
-              );
-            },
+          // List of pending requests for the tutor side.
+          SizedBox(
+            height: 200, // Set a height for the ListView
+            child: ListView.builder(
+              itemCount: _pendingRequests.length,
+              itemBuilder: (context, index) {
+                var request = _pendingRequests[index];
+                return Card(
+                  child: ListTile(
+                    title: Text('Request from ${request.studentName}'),
+                    subtitle: Text('Time: ${request.startTime}'),
+                    trailing: _buildRequestActions(index),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -298,7 +320,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Display rejected requests on the student side.
   Widget _buildRejectedRequests() {
-    return Expanded(
+    return SizedBox(
+      height: 150, // Set a fixed height for the rejected requests list
       child: ListView.builder(
         itemCount: _rejectedRequests.length,
         itemBuilder: (context, index) {
