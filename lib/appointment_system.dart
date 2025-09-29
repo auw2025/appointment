@@ -6,7 +6,8 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
 
-  const AppointmentSystem({Key? key, required this.loggedUserEmail}) : super(key: key);
+  const AppointmentSystem({Key? key, required this.loggedUserEmail})
+      : super(key: key);
 
   @override
   AppointmentSystemState createState() => AppointmentSystemState();
@@ -16,6 +17,9 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   final List<AppointmentRequest> _pendingRequests = [];
   final List<Appointment> _appointments = [];
   final List<AppointmentRequest> _rejectedRequests = [];
+
+  // Add a common CalendarController for view switching
+  final CalendarController _controller = CalendarController();
 
   @override
   Widget build(BuildContext context) {
@@ -57,18 +61,30 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Build a common calendar widget with configurable header color.
+  /// Build a common calendar widget with a configurable header color and view switch functionality.
   Widget _buildCalendar(Color headerColor) {
     return SizedBox(
       height: 450,
+      // The SfCalendar now includes the controller, allowedViews and onTap for view switching.
       child: SfCalendar(
+        controller: _controller,
         view: CalendarView.month,
+        allowedViews: const [
+          CalendarView.day,
+          CalendarView.week,
+          CalendarView.workWeek,
+          CalendarView.month,
+          CalendarView.timelineDay,
+          CalendarView.timelineWeek,
+          CalendarView.timelineWorkWeek,
+        ],
+        onTap: _calendarTapped,
         dataSource: AppointmentDataSource(_appointments),
         todayHighlightColor: headerColor,
         headerStyle: CalendarHeaderStyle(
           backgroundColor: headerColor,
           textStyle: const TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -199,6 +215,25 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
+  /// Callback for view switching when the calendar is tapped.
+  void _calendarTapped(CalendarTapDetails details) {
+    // If the current view is month and a calendar cell is tapped, switch to day view.
+    if (_controller.view == CalendarView.month &&
+        details.targetElement == CalendarElement.calendarCell) {
+      setState(() {
+        _controller.view = CalendarView.day;
+      });
+    }
+    // Alternatively, if the current view is week or workWeek and its header is tapped, switch to day view.
+    else if ((_controller.view == CalendarView.week ||
+            _controller.view == CalendarView.workWeek) &&
+        details.targetElement == CalendarElement.viewHeader) {
+      setState(() {
+        _controller.view = CalendarView.day;
+      });
+    }
+  }
+
   /// Student requests an appointment by showing a dialog.
   void _showRequestDialog(BuildContext context) {
     final nameController = TextEditingController();
@@ -291,10 +326,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Please enter the reason for rejecting this appointment:'),
+            const Text(
+                'Please enter the reason for rejecting this appointment:'),
             TextField(
               controller: reasonController,
-              decoration: const InputDecoration(hintText: 'Enter reason here'),
+              decoration:
+                  const InputDecoration(hintText: 'Enter reason here'),
             ),
           ],
         ),
@@ -331,7 +368,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
             child: ListTile(
               leading: const Icon(Icons.cancel, color: Colors.red),
-              title: Text('Request from ${request.studentName} at: ${request.startTime}'),
+              title: Text(
+                  'Request from ${request.studentName} at: ${request.startTime}'),
               subtitle: Text(
                 'Reason: ${request.rejectionReason}',
                 style: const TextStyle(color: Colors.red),
