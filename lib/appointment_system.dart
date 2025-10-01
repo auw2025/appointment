@@ -1,5 +1,6 @@
 // appointment_system.dart
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 import 'appointment_model.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 
@@ -42,6 +43,13 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -61,11 +69,18 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
+  /// Logout function to return to the login page.
+  void _logout() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
   /// Build a common calendar widget with a configurable header color and view switch functionality.
   Widget _buildCalendar(Color headerColor) {
     return SizedBox(
       height: 450,
-      // The SfCalendar now includes the controller, allowedViews and onTap for view switching.
       child: SfCalendar(
         controller: _controller,
         view: CalendarView.month,
@@ -178,7 +193,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           ),
           // List of pending requests for the tutor side.
           SizedBox(
-            height: 200, // Set a height for the ListView
+            height: 200,
             child: ListView.builder(
               itemCount: _pendingRequests.length,
               itemBuilder: (context, index) {
@@ -217,15 +232,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Callback for view switching when the calendar is tapped.
   void _calendarTapped(CalendarTapDetails details) {
-    // If the current view is month and a calendar cell is tapped, switch to day view.
     if (_controller.view == CalendarView.month &&
         details.targetElement == CalendarElement.calendarCell) {
       setState(() {
         _controller.view = CalendarView.day;
       });
-    }
-    // Alternatively, if the current view is week or workWeek and its header is tapped, switch to day view.
-    else if ((_controller.view == CalendarView.week ||
+    } else if ((_controller.view == CalendarView.week ||
             _controller.view == CalendarView.workWeek) &&
         details.targetElement == CalendarElement.viewHeader) {
       setState(() {
@@ -358,7 +370,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   /// Display rejected requests on the student side.
   Widget _buildRejectedRequests() {
     return SizedBox(
-      height: 150, // Set a fixed height for the rejected requests list
+      height: 150,
       child: ListView.builder(
         itemCount: _rejectedRequests.length,
         itemBuilder: (context, index) {
