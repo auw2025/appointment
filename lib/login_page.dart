@@ -1,5 +1,6 @@
 // login_page.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'appointment_system.dart';
 
 class LoginPage extends StatefulWidget {
@@ -20,6 +21,32 @@ class _LoginPageState extends State<LoginPage> {
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  /// Loads saved email and password from shared preferences.
+  Future<void> _loadSavedCredentials() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? savedEmail = prefs.getString('saved_email');
+    String? savedPassword = prefs.getString('saved_password');
+    if (savedEmail != null) {
+      _emailController.text = savedEmail;
+    }
+    if (savedPassword != null) {
+      _passwordController.text = savedPassword;
+    }
+  }
+
+  /// Saves the email and password to shared preferences.
+  Future<void> _saveCredentials(String email, String password) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('saved_email', email);
+    await prefs.setString('saved_password', password);
+  }
+
   void _validateAndLogin() {
     if (_formKey.currentState!.validate()) {
       String email = _emailController.text;
@@ -28,6 +55,8 @@ class _LoginPageState extends State<LoginPage> {
       // Check if the email and password combination is correct
       if ((email == _studentEmail || email == _chaplainEmail) &&
           password == _correctPassword) {
+        // Save the credentials
+        _saveCredentials(email, password);
         // If credentials are valid, navigate to AppointmentSystem screen
         Navigator.pushReplacement(
           context,
