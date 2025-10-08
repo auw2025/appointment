@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
+
 import 'appointment_model.dart';
 import 'login_page.dart';
+import 'change_password_page.dart'; // <-- Import the new change password page here
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
@@ -48,9 +50,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     Colors.pink,
     Colors.lime,
   ];
-
-  /// Popup options for manual testing CRUD
-  final List<String> options = <String>['Add', 'Delete', 'Update'];
 
   /// Variable to store the user's display name retrieved from Firestore.
   String? _displayName;
@@ -94,7 +93,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
         return Meeting.fromFireStoreDoc(
           doc.id,
-          doc.data(),
+          doc.data() as Map<String, dynamic>,
           _colorCollection[random.nextInt(_colorCollection.length)],
         );
       }).toList();
@@ -147,46 +146,25 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             tooltip: 'Logout',
             onPressed: _logout,
           ),
-          // Optional example: popup for manual testing of Firestore CRUD
+          // Replaced the old menu (Add, Delete, Update) with a single "Change password" option
           PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
-            itemBuilder: (BuildContext context) => options.map((String choice) {
-              return PopupMenuItem<String>(
-                value: choice,
-                child: Text(choice),
-              );
-            }).toList(),
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'change_password',
+                child: Text('Change password'),
+              ),
+            ],
             onSelected: (String value) {
-              if (value == 'Add') {
-                // Hard-coded doc for quick testing
-                databaseReference
-                    .collection("CalendarAppointmentCollection")
-                    .doc("1")
-                    .set({
-                  'Subject': 'FireStore Test',
-                  'StudentName': 'Tester',
-                  'Status': 'accepted',
-                  'StartTime': '07/04/2020 08:00:00',
-                  'EndTime': '07/04/2020 09:00:00',
-                });
-              } else if (value == "Delete") {
-                try {
-                  databaseReference
-                      .collection('CalendarAppointmentCollection')
-                      .doc('1')
-                      .delete();
-                } catch (e) {
-                  debugPrint('Delete error: $e');
-                }
-              } else if (value == "Update") {
-                try {
-                  databaseReference
-                      .collection('CalendarAppointmentCollection')
-                      .doc('1')
-                      .update({'Subject': 'Updated Meeting'});
-                } catch (e) {
-                  debugPrint('Update error: $e');
-                }
+              if (value == 'change_password') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChangePasswordPage(
+                      userEmail: widget.loggedUserEmail,
+                    ),
+                  ),
+                );
               }
             },
           ),
@@ -287,8 +265,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             ),
           ),
 
-          // Separate from the actual calendar, we show previously "rejected" requests
-          // (fetched from Firestore). The student sees the reason here.
+          // Display "rejected" requests with reasons
           if (_rejectedMeetings.isNotEmpty) ...[
             const SizedBox(height: 30),
             const Text(
@@ -308,7 +285,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   final meeting = _rejectedMeetings[index];
                   return Card(
                     elevation: 4,
-                    margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                    margin: const EdgeInsets.symmetric(
+                        vertical: 5, horizontal: 12),
                     child: ListTile(
                       leading: const Icon(Icons.cancel, color: Colors.red),
                       title: Text('${meeting.subject} at: ${meeting.from}'),
@@ -350,7 +328,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.deepPurple),
-
           const SizedBox(height: 20),
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
