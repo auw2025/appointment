@@ -61,11 +61,14 @@ class _LoginPageState extends State<LoginPage> {
         // If credentials are valid, save them locally for auto-fill
         _saveCredentials(email, password);
 
-        // Navigate to AppointmentSystem
+        // Navigate to AppointmentSystem, passing email + role
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => AppointmentSystem(loggedUserEmail: email),
+            builder: (context) => AppointmentSystem(
+              loggedUserEmail: email,
+              userRole: role, // <-- pass the role we got from Firestore
+            ),
           ),
         );
       } else {

@@ -10,8 +10,15 @@ import 'login_page.dart';
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
-  const AppointmentSystem({Key? key, required this.loggedUserEmail})
-      : super(key: key);
+
+  /// New parameter for the user's role ("chaplain", "student", etc.)
+  final String userRole;
+
+  const AppointmentSystem({
+    Key? key,
+    required this.loggedUserEmail,
+    required this.userRole,
+  }) : super(key: key);
 
   @override
   AppointmentSystemState createState() => AppointmentSystemState();
@@ -118,8 +125,9 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isStudent = widget.loggedUserEmail == 'student@tsss.edu.hk';
-    final bool isChaplain = widget.loggedUserEmail == 'chaplain@tsss.edu.hk';
+    // Instead of checking hardcoded emails, rely on the role
+    final bool isStudent = widget.userRole == 'student';
+    final bool isChaplain = widget.userRole == 'chaplain';
 
     return Scaffold(
       appBar: AppBar(
@@ -151,7 +159,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             onSelected: (String value) {
               if (value == 'Add') {
                 // Hard-coded doc for quick testing
-                databaseReference.collection("CalendarAppointmentCollection").doc("1").set({
+                databaseReference
+                    .collection("CalendarAppointmentCollection")
+                    .doc("1")
+                    .set({
                   'Subject': 'FireStore Test',
                   'StudentName': 'Tester',
                   'Status': 'accepted',
@@ -275,13 +286,18 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               backgroundColor: Colors.blueAccent,
             ),
           ),
+
           // Separate from the actual calendar, we show previously "rejected" requests
           // (fetched from Firestore). The student sees the reason here.
           if (_rejectedMeetings.isNotEmpty) ...[
             const SizedBox(height: 30),
             const Text(
               'Rejected Appointments',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -334,6 +350,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.deepPurple),
+
           const SizedBox(height: 20),
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
@@ -344,7 +361,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             ),
             child: const Text(
               'Pending Appointment Requests',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
           // List of pending requests from Firestore with status = 'pending'
@@ -460,7 +481,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Write a pending appointment to Firestore
   void _requestAppointment(String studentName, DateTime startTime) async {
-    // For the sake of example, let's give every appointment 1 hour duration
+    // For the sake of example, let's give every appointment 1 hour duration.
     final endTime = startTime.add(const Duration(hours: 1));
     await databaseReference.collection("CalendarAppointmentCollection").add({
       'Subject': 'Appointment with $studentName',
