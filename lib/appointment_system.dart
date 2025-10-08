@@ -45,10 +45,34 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   /// Popup options for manual testing CRUD
   final List<String> options = <String>['Add', 'Delete', 'Update'];
 
+  /// Variable to store the user's display name retrieved from Firestore.
+  String? _displayName;
+
   @override
   void initState() {
     super.initState();
     _setupRealTimeListener();
+    _fetchUserDisplayName();
+  }
+
+  /// Fetch the user's display name from Firestore based on the provided email.
+  void _fetchUserDisplayName() async {
+    try {
+      // Assuming your user collection is called "Users"
+      QuerySnapshot userSnapshot = await databaseReference
+          .collection("Users")
+          .where("email", isEqualTo: widget.loggedUserEmail)
+          .limit(1)
+          .get();
+
+      if (userSnapshot.docs.isNotEmpty) {
+        setState(() {
+          _displayName = userSnapshot.docs.first.get('displayName');
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user display name: $e");
+    }
   }
 
   /// This method sets up a real-time listener for all documents in Firestore.
@@ -216,16 +240,26 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Student calendar with a request button
+  /// Student calendar with a request button and greeting text
   Widget _buildStudentCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, // Align children to the left.
         children: [
-          const Text(
-            'Student Calendar (Accepted Appointments)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          // Greeting text above the title
+          if (_displayName != null)
+            Text(
+              'Hello $_displayName,',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.left,
+            )
+          else
+            const Text(
+              'Student Calendar (Accepted Appointments)',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.left,
+            ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.blueAccent),
           const SizedBox(height: 20),
@@ -241,7 +275,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               backgroundColor: Colors.blueAccent,
             ),
           ),
-
           // Separate from the actual calendar, we show previously "rejected" requests
           // (fetched from Firestore). The student sees the reason here.
           if (_rejectedMeetings.isNotEmpty) ...[
@@ -279,19 +312,28 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Chaplain calendar, plus a list of pending requests
+  /// Chaplain calendar with a list of pending requests and greeting text
   Widget _buildChaplainCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, // Align children to the left.
         children: [
-          const Text(
-            'Chaplain Calendar (Accepted Appointments)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          // Greeting text above the title
+          if (_displayName != null)
+            Text(
+              'Hello $_displayName,',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.left,
+            )
+          else
+            const Text(
+              'Chaplain Calendar (Accepted Appointments)',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.left,
+            ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.deepPurple),
-
           const SizedBox(height: 20),
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
