@@ -2,24 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'appointment_system.dart';
+import 'user_service.dart'; // <-- New import
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
-  
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Hardcoded credentials for both users
-  final String _studentEmail = 'student@tsss.edu.hk';
-  final String _chaplainEmail = 'chaplain@tsss.edu.hk';
-  final String _correctPassword = '123456';
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // Instantiate user service
+  final UserService _userService = UserService();
 
   @override
   void initState() {
@@ -47,17 +45,23 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setString('saved_password', password);
   }
 
-  void _validateAndLogin() {
+  /// Validates and performs login using Firestore.
+  void _validateAndLogin() async {
     if (_formKey.currentState!.validate()) {
-      String email = _emailController.text;
-      String password = _passwordController.text;
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
 
-      // Check if the email and password combination is correct
-      if ((email == _studentEmail || email == _chaplainEmail) &&
-          password == _correctPassword) {
-        // Save the credentials
+      // Attempt login through Firestore
+      final role = await _userService.loginUser(
+        email: email,
+        password: password,
+      );
+
+      if (role != null) {
+        // If credentials are valid, save them locally for auto-fill
         _saveCredentials(email, password);
-        // If credentials are valid, navigate to AppointmentSystem screen
+
+        // Navigate to AppointmentSystem
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -123,13 +127,13 @@ class _LoginPageState extends State<LoginPage> {
                 // Login Button
                 ElevatedButton(
                   onPressed: _validateAndLogin,
-                  child: const Text('Login'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       vertical: 16,
                       horizontal: 32,
                     ),
                   ),
+                  child: const Text('Login'),
                 ),
               ],
             ),
