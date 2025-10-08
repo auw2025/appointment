@@ -1,4 +1,5 @@
 // appointment_system.dart
+import 'dart:async'; // <-- Needed for StreamSubscription
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,7 @@ import 'change_password_page.dart'; // <-- Import the new change password page h
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
 
-  /// New parameter for the user's role ("chaplain", "student", etc.)
+  /// The user's role ("chaplain", "student", etc.)
   final String userRole;
 
   const AppointmentSystem({
@@ -31,7 +32,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   MeetingDataSource? events;
 
   /// We no longer use local lists for pending/rejected.
-  /// Instead, we'll read them from Firestore in real time.
+  /// Instead, we read them from Firestore in real time.
   List<Meeting> _pendingMeetings = [];
   List<Meeting> _rejectedMeetings = [];
 
@@ -51,27 +52,45 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     Colors.lime,
   ];
 
-  /// Variable to store the user's display name retrieved from Firestore.
+  /// Variable to store the student's display name (or user's display name) retrieved from Firestore.
   String? _displayName;
+
+  /// Keep a list of available chaplains to show in the dropdown.
+  List<Map<String, String?>> _chaplains = [];
+  String? _selectedChaplainEmail;
+  String? _selectedChaplainDisplayName;
+
+  /// Store the Firestore subscription so we can cancel it in dispose().
+  StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _setupRealTimeListener();
-    _fetchUserDisplayName();
+    _setupRealTimeListener();     // Sets up the Firestore snapshots listener
+    _fetchUserDisplayName();      // Fetch the user's display name once
+    if (widget.userRole == 'student') {
+      _fetchChaplains();         // Only fetch chaplains for students
+    }
+  }
+
+  @override
+  void dispose() {
+    // Cancel the Firestore subscription to avoid setState() calls after dispose
+    _appointmentsSubscription?.cancel();
+    super.dispose();
   }
 
   /// Fetch the user's display name from Firestore based on the provided email.
   void _fetchUserDisplayName() async {
     try {
-      // Assuming your user collection is called "Users"
       QuerySnapshot userSnapshot = await databaseReference
           .collection("Users")
           .where("email", isEqualTo: widget.loggedUserEmail)
           .limit(1)
           .get();
 
-      if (userSnapshot.docs.isNotEmpty) {
+      // Only call setState if the widget is still mounted
+      if (userSnapshot.docs.isNotEmpty && mounted) {
         setState(() {
           _displayName = userSnapshot.docs.first.get('displayName');
         });
@@ -81,50 +100,80 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// This method sets up a real-time listener for all documents in Firestore.
-  /// After reading the docs, we separate them based on status.
+  /// Fetch all chaplains from the "Users" collection to build a dropdown list.
+  void _fetchChaplains() async {
+    try {
+      QuerySnapshot chaplainsSnapshot = await databaseReference
+          .collection("Users")
+          .where("role", isEqualTo: "chaplain")
+          .get();
+
+      if (mounted) {
+        List<Map<String, String?>> chaplainList = chaplainsSnapshot.docs.map((doc) {
+          return {
+            "email": doc.get('email') as String?,
+            "displayName": doc.get('displayName') as String?,
+          };
+        }).toList();
+
+        setState(() {
+          _chaplains = chaplainList;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching chaplains: $e");
+    }
+  }
+
+  /// Sets up a real-time listener for appointment documents in Firestore
+  /// and stores the subscription so we can cancel it later.
   void _setupRealTimeListener() {
-    databaseReference
+    _appointmentsSubscription = databaseReference
         .collection("CalendarAppointmentCollection")
         .snapshots()
-        .listen((querySnapshot) {
-      final Random random = Random();
-      // Convert snapshots to a List<Meeting>
-      List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
-        return Meeting.fromFireStoreDoc(
-          doc.id,
-          doc.data() as Map<String, dynamic>,
-          _colorCollection[random.nextInt(_colorCollection.length)],
-        );
-      }).toList();
+        .listen(
+      (querySnapshot) {
+        final Random random = Random();
+        // Convert snapshots to a List<Meeting>
+        List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
+          return Meeting.fromFireStoreDoc(
+            doc.id,
+            doc.data() as Map<String, dynamic>,
+            _colorCollection[random.nextInt(_colorCollection.length)],
+          );
+        }).toList();
 
-      // Separate them by status
-      List<Meeting> accepted = [];
-      List<Meeting> pending = [];
-      List<Meeting> rejected = [];
+        // Separate them by status
+        List<Meeting> accepted = [];
+        List<Meeting> pending = [];
+        List<Meeting> rejected = [];
 
-      for (var meeting in allMeetings) {
-        if (meeting.status == 'accepted') {
-          accepted.add(meeting);
-        } else if (meeting.status == 'pending') {
-          pending.add(meeting);
-        } else if (meeting.status == 'rejected') {
-          rejected.add(meeting);
+        for (var meeting in allMeetings) {
+          if (meeting.status == 'accepted') {
+            accepted.add(meeting);
+          } else if (meeting.status == 'pending') {
+            pending.add(meeting);
+          } else if (meeting.status == 'rejected') {
+            rejected.add(meeting);
+          }
         }
-      }
 
-      setState(() {
-        // Only "accepted" appointments go to the calendar
-        events = MeetingDataSource(accepted);
-        _pendingMeetings = pending;
-        _rejectedMeetings = rejected;
-      });
-    });
+        // Only call setState if still mounted
+        if (mounted) {
+          setState(() {
+            // "accepted" appointments go to the calendar
+            events = MeetingDataSource(accepted);
+            _pendingMeetings = pending;
+            _rejectedMeetings = rejected;
+          });
+        }
+      },
+      onError: (error) => debugPrint("Firestore snapshots error: $error"),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Instead of checking hardcoded emails, rely on the role
     final bool isStudent = widget.userRole == 'student';
     final bool isChaplain = widget.userRole == 'chaplain';
 
@@ -146,7 +195,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             tooltip: 'Logout',
             onPressed: _logout,
           ),
-          // Replaced the old menu (Add, Delete, Update) with a single "Change password" option
           PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
             itemBuilder: (BuildContext context) => [
@@ -275,6 +323,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
               ),
+              textAlign: TextAlign.left,
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -286,7 +335,9 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   return Card(
                     elevation: 4,
                     margin: const EdgeInsets.symmetric(
-                        vertical: 5, horizontal: 12),
+                      vertical: 5,
+                      horizontal: 12,
+                    ),
                     child: ListTile(
                       leading: const Icon(Icons.cancel, color: Colors.red),
                       title: Text('${meeting.subject} at: ${meeting.from}'),
@@ -343,6 +394,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
+              textAlign: TextAlign.left,
             ),
           ),
           // List of pending requests from Firestore with status = 'pending'
@@ -389,80 +441,173 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   void _calendarTapped(CalendarTapDetails details) {
     if (_controller.view == CalendarView.month &&
         details.targetElement == CalendarElement.calendarCell) {
-      setState(() {
-        _controller.view = CalendarView.day;
-      });
+      if (mounted) {
+        setState(() {
+          _controller.view = CalendarView.day;
+        });
+      }
     }
   }
 
   /// Show a dialog for requesting a new appointment
+  ///
+  /// - Default date/time is 1 day ahead of now.
+  /// - We remove the TextField for student name since we have _displayName.
+  /// - We display a DropdownButton to let the student pick a chaplain.
+  /// - We make content left-aligned using crossAxisAlignment: CrossAxisAlignment.start.
   void _showRequestDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    DateTime selectedTime = DateTime.now();
+    DateTime selectedTime = DateTime.now().add(const Duration(days: 1));
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Request Appointment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Student Name'),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              child: const Text('Pick Date & Time'),
-              onPressed: () async {
-                final now = DateTime.now();
-                DateTime? pickedDate = await showDatePicker(
-                  context: context,
-                  initialDate: now,
-                  firstDate: now,
-                  lastDate: DateTime(2100),
-                );
-                if (pickedDate != null) {
-                  TimeOfDay? pickedTime = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.now(),
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Request Appointment', textAlign: TextAlign.left),
+          content: StatefulBuilder(
+            builder: (BuildContext context, setStateDialog) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Student name (non-editable) so they can see their own name
+                  if (_displayName != null)
+                    Text(
+                      'Your name: $_displayName',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.left,
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Chaplain dropdown
+                  if (_chaplains.isNotEmpty) ...[
+                    const Text(
+                      'Select Chaplain:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.left,
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: _selectedChaplainEmail,
+                      hint: const Text('Select a chaplain'),
+                      items: _chaplains.map((chap) {
+                        return DropdownMenuItem<String>(
+                          value: chap["email"],
+                          child: Text(
+                            chap["displayName"] ?? "Unknown Chaplain",
+                            textAlign: TextAlign.left,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        // If this dialog is open but the parent widget is disposed,
+                        // it won't matter since the dialog is still alive. But to be safe:
+                        if (mounted) {
+                          setStateDialog(() {
+                            _selectedChaplainEmail = value; // email
+                            final chaplain = _chaplains.firstWhere(
+                              (c) => c["email"] == value,
+                              orElse: () => {"displayName": null},
+                            );
+                            _selectedChaplainDisplayName = chaplain["displayName"];
+                          });
+                        }
+                      },
+                    ),
+                  ] else ...[
+                    const Text(
+                      'No chaplains found!',
+                      style: TextStyle(color: Colors.red),
+                      textAlign: TextAlign.left,
+                    ),
+                  ],
+
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    child: const Text('Pick Date & Time'),
+                    onPressed: () async {
+                      final now = DateTime.now();
+                      DateTime? pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: selectedTime,
+                        firstDate: now,
+                        lastDate: DateTime(2100),
+                      );
+                      if (pickedDate != null) {
+                        TimeOfDay? pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(selectedTime),
+                        );
+                        if (pickedTime != null) {
+                          // Again, only call setState if we’re still alive:
+                          if (mounted) {
+                            setStateDialog(() {
+                              selectedTime = DateTime(
+                                pickedDate.year,
+                                pickedDate.month,
+                                pickedDate.day,
+                                pickedTime.hour,
+                                pickedTime.minute,
+                              );
+                            });
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Selected: ${DateFormat.yMMMd().add_jm().format(selectedTime)}',
+                    style: const TextStyle(fontSize: 14),
+                    textAlign: TextAlign.left,
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                // Only proceed if we have a chaplain selected
+                if (_selectedChaplainEmail != null &&
+                    _selectedChaplainDisplayName != null) {
+                  final studentName = _displayName ?? "Unknown Student";
+                  _requestAppointment(
+                    studentName,
+                    selectedTime,
+                    _selectedChaplainEmail!,
+                    _selectedChaplainDisplayName!,
                   );
-                  if (pickedTime != null) {
-                    selectedTime = DateTime(
-                      pickedDate.year,
-                      pickedDate.month,
-                      pickedDate.day,
-                      pickedTime.hour,
-                      pickedTime.minute,
-                    );
-                  }
+                  Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please select a chaplain first.'),
+                    ),
+                  );
                 }
               },
+              child: const Text('Request'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty) {
-                _requestAppointment(nameController.text, selectedTime);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Request'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   /// Write a pending appointment to Firestore
-  void _requestAppointment(String studentName, DateTime startTime) async {
-    // For the sake of example, let's give every appointment 1 hour duration.
+  void _requestAppointment(
+    String studentName,
+    DateTime startTime,
+    String chaplainEmail,
+    String chaplainDisplayName,
+  ) async {
     final endTime = startTime.add(const Duration(hours: 1));
     await databaseReference.collection("CalendarAppointmentCollection").add({
-      'Subject': 'Appointment with $studentName',
-      'StudentName': studentName,
+      'Subject': 'Appointment with $chaplainDisplayName',
+      'StudentName': studentName,          // from _displayName
+      'ChaplainName': chaplainDisplayName, // newly added
+      'ChaplainEmail': chaplainEmail,      // newly added
       'Status': 'pending',
       'RejectionReason': null,
       'StartTime': DateFormat('dd/MM/yyyy HH:mm:ss').format(startTime),
