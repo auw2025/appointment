@@ -9,7 +9,7 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import 'appointment_model.dart';
 import 'login_page.dart';
-import 'change_password_page.dart'; // <-- Import the new change password page
+import 'change_password_page.dart'; // <-- Import the change password page
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
@@ -561,9 +561,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     subtitle: Text(
                       DateFormat.yMMMd().add_jm().format(newStartTime),
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit),
+                    // Instead of the pencil icon, we now show "Edit" as a text button
+                    trailing: TextButton(
                       onPressed: () => pickDateTime(true),
+                      child: const Text('Edit'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -573,9 +574,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     subtitle: Text(
                       DateFormat.yMMMd().add_jm().format(newEndTime),
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit),
+                    // Instead of the pencil icon, we now show "Edit" as a text button
+                    trailing: TextButton(
                       onPressed: () => pickDateTime(false),
+                      child: const Text('Edit'),
                     ),
                   ),
                 ],
