@@ -109,7 +109,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           .get();
 
       if (mounted) {
-        List<Map<String, String?>> chaplainList = chaplainsSnapshot.docs.map((doc) {
+        List<Map<String, String?>> chaplainList =
+            chaplainsSnapshot.docs.map((doc) {
           return {
             "email": doc.get('email') as String?,
             "displayName": doc.get('displayName') as String?,
@@ -136,11 +137,17 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         final Random random = Random();
         // Convert snapshots to a List<Meeting>
         List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
-          return Meeting.fromFireStoreDoc(
+          // Create meeting from the Firestore document
+          var meeting = Meeting.fromFireStoreDoc(
             doc.id,
             doc.data() as Map<String, dynamic>,
             _colorCollection[random.nextInt(_colorCollection.length)],
           );
+          // If the logged-in user is a chaplain, override the subject to show the student's name.
+          if (widget.userRole == 'chaplain') {
+            meeting.subject = 'Appointment with ${meeting.studentName}';
+          }
+          return meeting;
         }).toList();
 
         // Separate them by status
@@ -312,7 +319,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               backgroundColor: Colors.blueAccent,
             ),
           ),
-
           // Display "rejected" requests with reasons
           if (_rejectedMeetings.isNotEmpty) ...[
             const SizedBox(height: 30),
@@ -462,7 +468,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Request Appointment', textAlign: TextAlign.left),
+          title:
+              const Text('Request Appointment', textAlign: TextAlign.left),
           content: StatefulBuilder(
             builder: (BuildContext context, setStateDialog) {
               return Column(
@@ -477,7 +484,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       textAlign: TextAlign.left,
                     ),
                   const SizedBox(height: 16),
-
                   // Chaplain dropdown
                   if (_chaplains.isNotEmpty) ...[
                     const Text(
@@ -521,7 +527,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       textAlign: TextAlign.left,
                     ),
                   ],
-
                   const SizedBox(height: 20),
                   ElevatedButton(
                     child: const Text('Pick Date & Time'),
