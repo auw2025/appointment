@@ -12,10 +12,14 @@ class Meeting {
   bool isAllDay;
 
   /// Firestore-specific fields
-  String? key;              // Firestore document ID
-  String status;            // 'pending', 'accepted', or 'rejected'
-  String studentName;       // name of the requesting student
-  String? rejectionReason;  // reason provided if chaplain rejects
+  String? key; // Firestore document ID
+  String status; // 'pending', 'accepted', or 'rejected'
+  String studentName; // Name of the requesting student
+  
+  /// New field: Combined student class and class number (e.g., "5J 23")
+  String? studentClassAndNumber;
+  
+  String? rejectionReason; // Reason provided if chaplain rejects
 
   Meeting({
     required this.subject,
@@ -26,6 +30,7 @@ class Meeting {
     this.key,
     required this.status,
     required this.studentName,
+    this.studentClassAndNumber,
     this.rejectionReason,
   });
 
@@ -35,6 +40,7 @@ class Meeting {
       key: docId,
       subject: data['Subject'] ?? '',
       studentName: data['StudentName'] ?? '',
+      studentClassAndNumber: data['StudentClassAndNumber'], // Reads the combined field
       status: data['Status'] ?? 'pending',
       rejectionReason: data['RejectionReason'],
       from: DateFormat('dd/MM/yyyy HH:mm:ss').parse(data['StartTime']),

@@ -39,7 +39,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   final CalendarController _controller = CalendarController();
   final FirebaseFirestore databaseReference = FirebaseFirestore.instance;
 
-  /// A collection of colors to randomly assign to each appointment
+  /// A collection of colors to randomly assign to each appointment.
   final List<Color> _colorCollection = <Color>[
     Colors.red,
     Colors.blue,
@@ -55,6 +55,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   /// Variable to store the student's display name (or user's display name) retrieved from Firestore.
   String? _displayName;
 
+  /// Variable to store the student's class number from Firestore.
+  String? _classNumber;
+  
+  /// Variable to store the student's class value (e.g. "5J").
+  String? _studentClass;
+
   /// Keep a list of available chaplains to show in the dropdown.
   List<Map<String, String?>> _chaplains = [];
   String? _selectedChaplainEmail;
@@ -66,10 +72,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   @override
   void initState() {
     super.initState();
-    _setupRealTimeListener();     // Sets up the Firestore snapshots listener
-    _fetchUserDisplayName();      // Fetch the user's display name once
+    _setupRealTimeListener(); // Sets up the Firestore snapshots listener
+    _fetchUserDisplayName();  // Fetch the user's display name (and class info) once
     if (widget.userRole == 'student') {
-      _fetchChaplains();         // Only fetch chaplains for students
+      _fetchChaplains(); // Only fetch chaplains for students
     }
   }
 
@@ -80,7 +86,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     super.dispose();
   }
 
-  /// Fetch the user's display name from Firestore based on the provided email.
+  /// Fetch the user's display name, class number, and class (e.g. "5J") from Firestore based on the provided email.
   void _fetchUserDisplayName() async {
     try {
       QuerySnapshot userSnapshot = await databaseReference
@@ -92,7 +98,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       // Only call setState if the widget is still mounted
       if (userSnapshot.docs.isNotEmpty && mounted) {
         setState(() {
-          _displayName = userSnapshot.docs.first.get('displayName');
+          var userData = userSnapshot.docs.first.data() as Map<String, dynamic>;
+          _displayName = userData['displayName'];
+          _classNumber = userData['classNumber']; // for example: "23"
+          _studentClass = userData['class']; // for example: "5J"
         });
       }
     } catch (e) {
@@ -143,9 +152,10 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             doc.data() as Map<String, dynamic>,
             _colorCollection[random.nextInt(_colorCollection.length)],
           );
-          // If the logged-in user is a chaplain, override the subject to show the student's name.
+          // If the logged-in user is a chaplain, override the subject to show the student's name and combined class info.
           if (widget.userRole == 'chaplain') {
-            meeting.subject = 'Appointment with ${meeting.studentName}';
+            meeting.subject =
+                'Appointment with ${meeting.studentName} (${meeting.studentClassAndNumber ?? 'N/A'})';
           }
           return meeting;
         }).toList();
@@ -426,7 +436,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Buttons for accepting or rejecting a request
+  /// Buttons for accepting or rejecting a request.
   Widget _buildRequestActions(Meeting meeting) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -443,7 +453,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Calendar tap callback
+  /// Calendar tap callback.
   void _calendarTapped(CalendarTapDetails details) {
     if (_controller.view == CalendarView.month &&
         details.targetElement == CalendarElement.calendarCell) {
@@ -455,7 +465,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Show a dialog for requesting a new appointment
+  /// Show a dialog for requesting a new appointment.
   ///
   /// - Default date/time is 1 day ahead of now.
   /// - We remove the TextField for student name since we have _displayName.
@@ -468,15 +478,14 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title:
-              const Text('Request Appointment', textAlign: TextAlign.left),
+          title: const Text('Request Appointment', textAlign: TextAlign.left),
           content: StatefulBuilder(
             builder: (BuildContext context, setStateDialog) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Student name (non-editable) so they can see their own name
+                  // Student name (non-editable) so they can see their own name.
                   if (_displayName != null)
                     Text(
                       'Your name: $_displayName',
@@ -484,7 +493,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       textAlign: TextAlign.left,
                     ),
                   const SizedBox(height: 16),
-                  // Chaplain dropdown
+                  // Chaplain dropdown.
                   if (_chaplains.isNotEmpty) ...[
                     const Text(
                       'Select Chaplain:',
@@ -506,8 +515,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        // If this dialog is open but the parent widget is disposed,
-                        // it won't matter since the dialog is still alive. But to be safe:
+                        // Update the selected chaplain inside the dialog.
                         if (mounted) {
                           setStateDialog(() {
                             _selectedChaplainEmail = value; // email
@@ -544,7 +552,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                           initialTime: TimeOfDay.fromDateTime(selectedTime),
                         );
                         if (pickedTime != null) {
-                          // Again, only call setState if we’re still alive:
+                          // Update the selected time.
                           if (mounted) {
                             setStateDialog(() {
                               selectedTime = DateTime(
@@ -573,7 +581,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           actions: [
             TextButton(
               onPressed: () {
-                // Only proceed if we have a chaplain selected
+                // Only proceed if a chaplain is selected.
                 if (_selectedChaplainEmail != null &&
                     _selectedChaplainDisplayName != null) {
                   final studentName = _displayName ?? "Unknown Student";
@@ -600,7 +608,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Write a pending appointment to Firestore
+  /// Write a pending appointment to Firestore.
   void _requestAppointment(
     String studentName,
     DateTime startTime,
@@ -610,9 +618,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     final endTime = startTime.add(const Duration(hours: 1));
     await databaseReference.collection("CalendarAppointmentCollection").add({
       'Subject': 'Appointment with $chaplainDisplayName',
-      'StudentName': studentName,          // from _displayName
-      'ChaplainName': chaplainDisplayName, // newly added
-      'ChaplainEmail': chaplainEmail,      // newly added
+      'StudentName': studentName, // from _displayName
+      'StudentClassNumber': _classNumber, // stored separately if needed
+      'StudentClassAndNumber': '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
+      'ChaplainName': chaplainDisplayName,
+      'ChaplainEmail': chaplainEmail,
       'Status': 'pending',
       'RejectionReason': null,
       'StartTime': DateFormat('dd/MM/yyyy HH:mm:ss').format(startTime),
@@ -632,7 +642,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     });
   }
 
-  /// Reject appointment: set status='rejected' and store the reason
+  /// Reject appointment: set status='rejected' and store the reason.
   void _rejectAppointment(Meeting meeting) {
     TextEditingController reasonController = TextEditingController();
     showDialog(
