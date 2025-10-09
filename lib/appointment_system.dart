@@ -1,5 +1,6 @@
 // appointment_system.dart
-import 'dart:async'; // <-- Needed for StreamSubscription
+
+import 'dart:async'; // Needed for StreamSubscription
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,7 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import 'appointment_model.dart';
 import 'login_page.dart';
-import 'change_password_page.dart'; // <-- Import the new change password page here
+import 'change_password_page.dart'; // <-- Import the new change password page
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
@@ -73,7 +74,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   void initState() {
     super.initState();
     _setupRealTimeListener(); // Sets up the Firestore snapshots listener
-    _fetchUserDisplayName();  // Fetch the user's display name (and class info) once
+    _fetchUserDisplayName();  // Fetch the user's display name (and class info)
     if (widget.userRole == 'student') {
       _fetchChaplains(); // Only fetch chaplains for students
     }
@@ -95,7 +96,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           .limit(1)
           .get();
 
-      // Only call setState if the widget is still mounted
       if (userSnapshot.docs.isNotEmpty && mounted) {
         setState(() {
           var userData = userSnapshot.docs.first.data() as Map<String, dynamic>;
@@ -175,10 +175,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           }
         }
 
-        // Only call setState if still mounted
         if (mounted) {
           setState(() {
-            // "accepted" appointments go to the calendar
             events = MeetingDataSource(accepted);
             _pendingMeetings = pending;
             _rejectedMeetings = rejected;
@@ -186,6 +184,14 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         }
       },
       onError: (error) => debugPrint("Firestore snapshots error: $error"),
+    );
+  }
+
+  /// Logout function to return to the login page
+  void _logout() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
     );
   }
 
@@ -249,57 +255,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Logout function to return to the login page
-  void _logout() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
-  }
-
-  /// Common calendar widget for displaying accepted appointments
-  Widget _buildCalendar(Color headerColor) {
-    return SizedBox(
-      height: 450,
-      child: SfCalendar(
-        controller: _controller,
-        view: CalendarView.month,
-        allowedViews: const [
-          CalendarView.day,
-          CalendarView.week,
-          CalendarView.workWeek,
-          CalendarView.month,
-          CalendarView.timelineDay,
-          CalendarView.timelineWeek,
-          CalendarView.timelineWorkWeek,
-        ],
-        onTap: _calendarTapped,
-        dataSource: events,
-        todayHighlightColor: headerColor,
-        headerStyle: CalendarHeaderStyle(
-          backgroundColor: headerColor,
-          textStyle: const TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        selectionDecoration: BoxDecoration(
-          border: Border.all(
-            color: headerColor,
-            width: 2,
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Student calendar with a request button and greeting text
   Widget _buildStudentCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // Align children to the left.
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Greeting text above the title
           if (_displayName != null)
@@ -378,7 +339,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // Align children to the left.
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Greeting text above the title
           if (_displayName != null)
@@ -413,7 +374,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               textAlign: TextAlign.left,
             ),
           ),
-          // List of pending requests from Firestore with status = 'pending'
           if (_pendingMeetings.isNotEmpty)
             SizedBox(
               height: 200,
@@ -436,6 +396,109 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
+  /// Common calendar widget for displaying accepted appointments
+  Widget _buildCalendar(Color headerColor) {
+    return SizedBox(
+      height: 450,
+      child: SfCalendar(
+        controller: _controller,
+        view: CalendarView.month,
+        allowedViews: const [
+          CalendarView.day,
+          CalendarView.week,
+          CalendarView.workWeek,
+          CalendarView.month,
+          CalendarView.timelineDay,
+          CalendarView.timelineWeek,
+          CalendarView.timelineWorkWeek,
+        ],
+        onTap: _calendarTapped, // Updated callback
+        dataSource: events,
+        todayHighlightColor: headerColor,
+        headerStyle: CalendarHeaderStyle(
+          backgroundColor: headerColor,
+          textStyle: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        selectionDecoration: BoxDecoration(
+          border: Border.all(
+            color: headerColor,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tap callback: show appointment details if chaplain + appointment tapped,
+  /// else switch from month to day view if the user taps a blank cell in month view.
+  void _calendarTapped(CalendarTapDetails details) {
+    // If the user is a chaplain AND at least one appointment was tapped,
+    // show the appointment details dialog.
+    if (widget.userRole == 'chaplain' &&
+        details.appointments != null &&
+        details.appointments!.isNotEmpty) {
+      final Meeting tappedMeeting = details.appointments!.first as Meeting;
+      _showAppointmentDetailsDialog(tappedMeeting);
+    }
+
+    // If the user tapped on a day cell in Month view, switch to day view.
+    if (_controller.view == CalendarView.month &&
+        details.targetElement == CalendarElement.calendarCell) {
+      setState(() {
+        _controller.view = CalendarView.day;
+      });
+    }
+  }
+
+  /// Show a dialog with the details of the tapped appointment, for chaplains only.
+  void _showAppointmentDetailsDialog(Meeting meeting) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final String startTime = DateFormat.yMMMd().add_jm().format(meeting.from);
+        final String endTime = DateFormat.yMMMd().add_jm().format(meeting.to);
+
+        return AlertDialog(
+          title: const Text('Appointment Details'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Subject: ${meeting.subject}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text('Student Name: ${meeting.studentName}'),
+              if (meeting.studentClassAndNumber != null)
+                Text('Class: ${meeting.studentClassAndNumber}'),
+              Text('Status: ${meeting.status}'),
+              if (meeting.rejectionReason != null &&
+                  meeting.rejectionReason!.isNotEmpty)
+                Text('Rejection Reason: ${meeting.rejectionReason}'),
+              const Divider(
+                height: 16,
+                thickness: 1,
+              ),
+              Text('Start Time: $startTime'),
+              Text('End Time: $endTime'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Buttons for accepting or rejecting a request.
   Widget _buildRequestActions(Meeting meeting) {
     return Row(
@@ -453,24 +516,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Calendar tap callback.
-  void _calendarTapped(CalendarTapDetails details) {
-    if (_controller.view == CalendarView.month &&
-        details.targetElement == CalendarElement.calendarCell) {
-      if (mounted) {
-        setState(() {
-          _controller.view = CalendarView.day;
-        });
-      }
-    }
-  }
-
-  /// Show a dialog for requesting a new appointment.
-  ///
-  /// - Default date/time is 1 day ahead of now.
-  /// - We remove the TextField for student name since we have _displayName.
-  /// - We display a DropdownButton to let the student pick a chaplain.
-  /// - We make content left-aligned using crossAxisAlignment: CrossAxisAlignment.start.
+  /// Show a dialog for requesting a new appointment (for students).
   void _showRequestDialog(BuildContext context) {
     DateTime selectedTime = DateTime.now().add(const Duration(days: 1));
 
@@ -485,7 +531,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Student name (non-editable) so they can see their own name.
+                  // Student name (non-editable)
                   if (_displayName != null)
                     Text(
                       'Your name: $_displayName',
@@ -493,7 +539,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       textAlign: TextAlign.left,
                     ),
                   const SizedBox(height: 16),
-                  // Chaplain dropdown.
+                  // Chaplain dropdown
                   if (_chaplains.isNotEmpty) ...[
                     const Text(
                       'Select Chaplain:',
@@ -515,17 +561,15 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        // Update the selected chaplain inside the dialog.
-                        if (mounted) {
-                          setStateDialog(() {
-                            _selectedChaplainEmail = value; // email
-                            final chaplain = _chaplains.firstWhere(
-                              (c) => c["email"] == value,
-                              orElse: () => {"displayName": null},
-                            );
-                            _selectedChaplainDisplayName = chaplain["displayName"];
-                          });
-                        }
+                        setStateDialog(() {
+                          _selectedChaplainEmail = value; // email
+                          final chaplain = _chaplains.firstWhere(
+                            (c) => c["email"] == value,
+                            orElse: () => {"displayName": null},
+                          );
+                          _selectedChaplainDisplayName =
+                              chaplain["displayName"];
+                        });
                       },
                     ),
                   ] else ...[
@@ -552,18 +596,15 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                           initialTime: TimeOfDay.fromDateTime(selectedTime),
                         );
                         if (pickedTime != null) {
-                          // Update the selected time.
-                          if (mounted) {
-                            setStateDialog(() {
-                              selectedTime = DateTime(
-                                pickedDate.year,
-                                pickedDate.month,
-                                pickedDate.day,
-                                pickedTime.hour,
-                                pickedTime.minute,
-                              );
-                            });
-                          }
+                          setStateDialog(() {
+                            selectedTime = DateTime(
+                              pickedDate.year,
+                              pickedDate.month,
+                              pickedDate.day,
+                              pickedTime.hour,
+                              pickedTime.minute,
+                            );
+                          });
                         }
                       }
                     },
@@ -581,7 +622,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           actions: [
             TextButton(
               onPressed: () {
-                // Only proceed if a chaplain is selected.
+                // Only proceed if a chaplain is selected
                 if (_selectedChaplainEmail != null &&
                     _selectedChaplainDisplayName != null) {
                   final studentName = _displayName ?? "Unknown Student";
@@ -616,11 +657,13 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     String chaplainDisplayName,
   ) async {
     final endTime = startTime.add(const Duration(hours: 1));
+
     await databaseReference.collection("CalendarAppointmentCollection").add({
       'Subject': 'Appointment with $chaplainDisplayName',
-      'StudentName': studentName, // from _displayName
-      'StudentClassNumber': _classNumber, // stored separately if needed
-      'StudentClassAndNumber': '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
+      'StudentName': studentName,
+      'StudentClassNumber': _classNumber, 
+      'StudentClassAndNumber':
+          '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
       'ChaplainName': chaplainDisplayName,
       'ChaplainEmail': chaplainEmail,
       'Status': 'pending',
