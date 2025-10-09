@@ -4,7 +4,6 @@ import 'dart:async'; // Needed for StreamSubscription
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 
@@ -14,7 +13,6 @@ import 'change_password_page.dart'; // <-- Import the new change password page
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
-
   /// The user's role ("chaplain", "student", etc.)
   final String userRole;
 
@@ -53,12 +51,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     Colors.lime,
   ];
 
-  /// Variable to store the student's display name (or user's display name) retrieved from Firestore.
+  /// Variable to store the student's (or user's) display name from Firestore.
   String? _displayName;
 
   /// Variable to store the student's class number from Firestore.
   String? _classNumber;
-  
+
   /// Variable to store the student's class value (e.g. "5J").
   String? _studentClass;
 
@@ -73,8 +71,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   @override
   void initState() {
     super.initState();
-    _setupRealTimeListener(); // Sets up the Firestore snapshots listener
-    _fetchUserDisplayName();  // Fetch the user's display name (and class info)
+    _setupRealTimeListener();
+    _fetchUserDisplayName();
     if (widget.userRole == 'student') {
       _fetchChaplains(); // Only fetch chaplains for students
     }
@@ -87,7 +85,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     super.dispose();
   }
 
-  /// Fetch the user's display name, class number, and class (e.g. "5J") from Firestore based on the provided email.
+  /// Fetch the user's display name, class number, and class from Firestore based on the provided email.
   void _fetchUserDisplayName() async {
     try {
       QuerySnapshot userSnapshot = await databaseReference
@@ -100,8 +98,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         setState(() {
           var userData = userSnapshot.docs.first.data() as Map<String, dynamic>;
           _displayName = userData['displayName'];
-          _classNumber = userData['classNumber']; // for example: "23"
-          _studentClass = userData['class']; // for example: "5J"
+          _classNumber = userData['classNumber']; // e.g., "23"
+          _studentClass = userData['class'];       // e.g., "5J"
         });
       }
     } catch (e) {
@@ -109,7 +107,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Fetch all chaplains from the "Users" collection to build a dropdown list.
+  /// Fetch all chaplains from the "Users" collection to build a dropdown list (for students).
   void _fetchChaplains() async {
     try {
       QuerySnapshot chaplainsSnapshot = await databaseReference
@@ -135,8 +133,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Sets up a real-time listener for appointment documents in Firestore
-  /// and stores the subscription so we can cancel it later.
+  /// Sets up a real-time listener for appointment documents in Firestore.
   void _setupRealTimeListener() {
     _appointmentsSubscription = databaseReference
         .collection("CalendarAppointmentCollection")
@@ -144,15 +141,16 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         .listen(
       (querySnapshot) {
         final Random random = Random();
+
         // Convert snapshots to a List<Meeting>
         List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
-          // Create meeting from the Firestore document
           var meeting = Meeting.fromFireStoreDoc(
             doc.id,
             doc.data() as Map<String, dynamic>,
             _colorCollection[random.nextInt(_colorCollection.length)],
           );
-          // If the logged-in user is a chaplain, override the subject to show the student's name and combined class info.
+
+          // If the user is chaplain, override the subject to show the student's name and class.
           if (widget.userRole == 'chaplain') {
             meeting.subject =
                 'Appointment with ${meeting.studentName} (${meeting.studentClassAndNumber ?? 'N/A'})';
@@ -187,7 +185,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Logout function to return to the login page
+  /// Logout function to return to the login page.
   void _logout() {
     Navigator.pushReplacement(
       context,
@@ -255,14 +253,13 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Student calendar with a request button and greeting text
+  /// Student calendar: accepted appointments + request button.
   Widget _buildStudentCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting text above the title
           if (_displayName != null)
             Text(
               'Hello $_displayName,',
@@ -290,7 +287,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               backgroundColor: Colors.blueAccent,
             ),
           ),
-          // Display "rejected" requests with reasons
           if (_rejectedMeetings.isNotEmpty) ...[
             const SizedBox(height: 30),
             const Text(
@@ -311,10 +307,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   final meeting = _rejectedMeetings[index];
                   return Card(
                     elevation: 4,
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 5,
-                      horizontal: 12,
-                    ),
+                    margin:
+                        const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
                     child: ListTile(
                       leading: const Icon(Icons.cancel, color: Colors.red),
                       title: Text('${meeting.subject} at: ${meeting.from}'),
@@ -334,14 +328,13 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Chaplain calendar with a list of pending requests and greeting text
+  /// Chaplain calendar: accepted appointments + pending requests.
   Widget _buildChaplainCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting text above the title
           if (_displayName != null)
             Text(
               'Hello $_displayName,',
@@ -396,7 +389,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Common calendar widget for displaying accepted appointments
+  /// Common calendar builder for showing accepted appointments.
   Widget _buildCalendar(Color headerColor) {
     return SizedBox(
       height: 450,
@@ -412,7 +405,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           CalendarView.timelineWeek,
           CalendarView.timelineWorkWeek,
         ],
-        onTap: _calendarTapped, // Updated callback
+        onTap: _calendarTapped,
         dataSource: events,
         todayHighlightColor: headerColor,
         headerStyle: CalendarHeaderStyle(
@@ -433,11 +426,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Tap callback: show appointment details if chaplain + appointment tapped,
-  /// else switch from month to day view if the user taps a blank cell in month view.
+  /// onTap callback: show appointment details if chaplain + tapped on an appointment.
   void _calendarTapped(CalendarTapDetails details) {
-    // If the user is a chaplain AND at least one appointment was tapped,
-    // show the appointment details dialog.
     if (widget.userRole == 'chaplain' &&
         details.appointments != null &&
         details.appointments!.isNotEmpty) {
@@ -445,7 +435,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       _showAppointmentDetailsDialog(tappedMeeting);
     }
 
-    // If the user tapped on a day cell in Month view, switch to day view.
+    // If user tapped on a blank cell in the month view, switch to day view.
     if (_controller.view == CalendarView.month &&
         details.targetElement == CalendarElement.calendarCell) {
       setState(() {
@@ -454,7 +444,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Show a dialog with the details of the tapped appointment, for chaplains only.
+  /// Show a dialog with the details of the tapped appointment, plus an edit pencil icon for chaplains.
   void _showAppointmentDetailsDialog(Meeting meeting) {
     showDialog(
       context: context,
@@ -463,7 +453,21 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         final String endTime = DateFormat.yMMMd().add_jm().format(meeting.to);
 
         return AlertDialog(
-          title: const Text('Appointment Details'),
+          // The title includes a pencil icon button
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Appointment Details'),
+              IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: 'Edit appointment times',
+                onPressed: () {
+                  Navigator.pop(context); // close this dialog first
+                  _showEditTimesDialog(meeting);
+                },
+              ),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,6 +498,128 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               child: const Text('Close'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  /// Dialog to let chaplain edit the start and end times of the meeting.
+  void _showEditTimesDialog(Meeting meeting) {
+    // We'll keep track of new StartTime and EndTime in local variables.
+    DateTime newStartTime = meeting.from;
+    DateTime newEndTime = meeting.to;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            // Function to pick date/time
+            Future<void> pickDateTime(bool isStart) async {
+              // Step 1: pick date
+              DateTime? pickedDate = await showDatePicker(
+                context: context,
+                initialDate: isStart ? newStartTime : newEndTime,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2100),
+              );
+              if (pickedDate != null) {
+                // Step 2: pick time
+                TimeOfDay? pickedTime = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(
+                    isStart ? newStartTime : newEndTime,
+                  ),
+                );
+                if (pickedTime != null) {
+                  final mergedDateTime = DateTime(
+                    pickedDate.year,
+                    pickedDate.month,
+                    pickedDate.day,
+                    pickedTime.hour,
+                    pickedTime.minute,
+                  );
+                  dialogSetState(() {
+                    if (isStart) {
+                      newStartTime = mergedDateTime;
+                    } else {
+                      newEndTime = mergedDateTime;
+                    }
+                  });
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Edit Appointment Times'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Display the new start time
+                  ListTile(
+                    title: const Text('Start Time'),
+                    subtitle: Text(
+                      DateFormat.yMMMd().add_jm().format(newStartTime),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => pickDateTime(true),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Display the new end time
+                  ListTile(
+                    title: const Text('End Time'),
+                    subtitle: Text(
+                      DateFormat.yMMMd().add_jm().format(newEndTime),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => pickDateTime(false),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context), // Cancel
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    // Optional: make sure newStartTime < newEndTime
+                    if (newEndTime.isBefore(newStartTime)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('End time must be after the start time.'),
+                        ),
+                      );
+                      return;
+                    }
+                    // Update Firestore for this meeting's doc
+                    try {
+                      if (meeting.key != null) {
+                        await databaseReference
+                            .collection("CalendarAppointmentCollection")
+                            .doc(meeting.key)
+                            .update({
+                          'StartTime': DateFormat('dd/MM/yyyy HH:mm:ss')
+                              .format(newStartTime),
+                          'EndTime': DateFormat('dd/MM/yyyy HH:mm:ss')
+                              .format(newEndTime),
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint('Error updating appointment times: $e');
+                    }
+                    Navigator.pop(context); // close the edit times dialog
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -531,7 +657,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Student name (non-editable)
                   if (_displayName != null)
                     Text(
                       'Your name: $_displayName',
@@ -539,7 +664,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       textAlign: TextAlign.left,
                     ),
                   const SizedBox(height: 16),
-                  // Chaplain dropdown
                   if (_chaplains.isNotEmpty) ...[
                     const Text(
                       'Select Chaplain:',
@@ -562,7 +686,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       }).toList(),
                       onChanged: (value) {
                         setStateDialog(() {
-                          _selectedChaplainEmail = value; // email
+                          _selectedChaplainEmail = value;
                           final chaplain = _chaplains.firstWhere(
                             (c) => c["email"] == value,
                             orElse: () => {"displayName": null},
@@ -649,7 +773,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Write a pending appointment to Firestore.
+  /// Write a new pending appointment to Firestore (student -> chaplain request).
   void _requestAppointment(
     String studentName,
     DateTime startTime,
@@ -657,13 +781,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     String chaplainDisplayName,
   ) async {
     final endTime = startTime.add(const Duration(hours: 1));
-
     await databaseReference.collection("CalendarAppointmentCollection").add({
       'Subject': 'Appointment with $chaplainDisplayName',
       'StudentName': studentName,
-      'StudentClassNumber': _classNumber, 
-      'StudentClassAndNumber':
-          '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
+      'StudentClassNumber': _classNumber,
+      'StudentClassAndNumber': '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
       'ChaplainName': chaplainDisplayName,
       'ChaplainEmail': chaplainEmail,
       'Status': 'pending',
@@ -675,7 +797,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Accept appointment: set status='accepted'
   void _acceptAppointment(Meeting meeting) async {
-    if (meeting.key == null) return; // safety check
+    if (meeting.key == null) return;
     await databaseReference
         .collection("CalendarAppointmentCollection")
         .doc(meeting.key)
