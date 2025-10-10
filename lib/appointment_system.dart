@@ -9,7 +9,7 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import 'appointment_model.dart';
 import 'login_page.dart';
-import 'change_password_page.dart'; // <-- Import the change password page
+import 'change_password_page.dart'; // <-- Import the new change password page
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
@@ -51,7 +51,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     Colors.lime,
   ];
 
-  /// Variable to store the student's (or user's) display name from Firestore.
+  /// Variable to store the user's display name from Firestore.
   String? _displayName;
 
   /// Variable to store the student's class number from Firestore.
@@ -60,12 +60,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   /// Variable to store the student's class value (e.g. "5J").
   String? _studentClass;
 
-  /// Keep a list of available chaplains to show in the dropdown.
+  /// Keep a list of available chaplains to show in the dropdown (for students).
   List<Map<String, String?>> _chaplains = [];
   String? _selectedChaplainEmail;
   String? _selectedChaplainDisplayName;
 
-  /// Store the Firestore subscription so we can cancel it in dispose().
+  /// Subscription to Firestore changes for appointments.
   StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
 
   @override
@@ -80,12 +80,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   @override
   void dispose() {
-    // Cancel the Firestore subscription to avoid setState() calls after dispose
     _appointmentsSubscription?.cancel();
     super.dispose();
   }
 
-  /// Fetch the user's display name, class number, and class from Firestore based on the provided email.
+  /// Fetch the user's display name, class number, and class from Firestore.
   void _fetchUserDisplayName() async {
     try {
       QuerySnapshot userSnapshot = await databaseReference
@@ -107,7 +106,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Fetch all chaplains from the "Users" collection to build a dropdown list (for students).
+  /// Fetch all chaplains from the "Users" collection (for students).
   void _fetchChaplains() async {
     try {
       QuerySnapshot chaplainsSnapshot = await databaseReference
@@ -119,8 +118,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
         List<Map<String, String?>> chaplainList =
             chaplainsSnapshot.docs.map((doc) {
           return {
-            "email": doc.get('email') as String?,
-            "displayName": doc.get('displayName') as String?,
+            "email": doc['email'] as String?,
+            "displayName": doc['displayName'] as String?,
           };
         }).toList();
 
@@ -150,26 +149,30 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             _colorCollection[random.nextInt(_colorCollection.length)],
           );
 
-          // If the user is chaplain, override the subject to show the student's name and class.
+          // If the user is chaplain, override the subject to show the student's info.
           if (widget.userRole == 'chaplain') {
             meeting.subject =
-                'Appointment with ${meeting.studentName} (${meeting.studentClassAndNumber ?? 'N/A'})';
+                'Appointment with ${meeting.studentName} '
+                '(${meeting.studentClassAndNumber ?? 'N/A'})';
           }
           return meeting;
         }).toList();
 
-        // Separate them by status
+        // Separate them by status, ignoring anything "deleted"
         List<Meeting> accepted = [];
         List<Meeting> pending = [];
         List<Meeting> rejected = [];
 
-        for (var meeting in allMeetings) {
-          if (meeting.status == 'accepted') {
-            accepted.add(meeting);
-          } else if (meeting.status == 'pending') {
-            pending.add(meeting);
-          } else if (meeting.status == 'rejected') {
-            rejected.add(meeting);
+        for (var mtg in allMeetings) {
+          // skip 'deleted' appointments
+          if (mtg.status == 'deleted') {
+            continue;
+          } else if (mtg.status == 'accepted') {
+            accepted.add(mtg);
+          } else if (mtg.status == 'pending') {
+            pending.add(mtg);
+          } else if (mtg.status == 'rejected') {
+            rejected.add(mtg);
           }
         }
 
@@ -189,7 +192,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   void _logout() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
+      MaterialPageRoute(builder: (_) => const LoginPage()),
     );
   }
 
@@ -229,7 +232,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ChangePasswordPage(
+                    builder: (_) => ChangePasswordPage(
                       userEmail: widget.loggedUserEmail,
                     ),
                   ),
@@ -253,7 +256,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Student calendar: accepted appointments + request button.
+  /// Student calendar with accepted appointments + request button.
   Widget _buildStudentCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -264,13 +267,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             Text(
               'Hello $_displayName,',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.left,
             )
           else
             const Text(
               'Student Calendar (Accepted Appointments)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.left,
             ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.blueAccent),
@@ -296,7 +297,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
               ),
-              textAlign: TextAlign.left,
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -328,7 +328,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Chaplain calendar: accepted appointments + pending requests.
+  /// Chaplain calendar with accepted appointments + pending requests.
   Widget _buildChaplainCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -339,13 +339,11 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             Text(
               'Hello $_displayName,',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.left,
             )
           else
             const Text(
               'Chaplain Calendar (Accepted Appointments)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.left,
             ),
           const SizedBox(height: 10),
           _buildCalendar(Colors.deepPurple),
@@ -364,7 +362,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
-              textAlign: TextAlign.left,
             ),
           ),
           if (_pendingMeetings.isNotEmpty)
@@ -373,7 +370,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               child: ListView.builder(
                 itemCount: _pendingMeetings.length,
                 itemBuilder: (context, index) {
-                  var meeting = _pendingMeetings[index];
+                  final meeting = _pendingMeetings[index];
                   return Card(
                     child: ListTile(
                       title: Text('Request from ${meeting.studentName}'),
@@ -444,27 +441,38 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Show a dialog with the details of the tapped appointment, plus an edit pencil icon for chaplains.
+  /// Show a dialog with the details of the tapped appointment, plus an edit pencil icon & bin icon for chaplains.
   void _showAppointmentDetailsDialog(Meeting meeting) {
+    final String startTime = DateFormat.yMMMd().add_jm().format(meeting.from);
+    final String endTime = DateFormat.yMMMd().add_jm().format(meeting.to);
+
     showDialog(
       context: context,
       builder: (context) {
-        final String startTime = DateFormat.yMMMd().add_jm().format(meeting.from);
-        final String endTime = DateFormat.yMMMd().add_jm().format(meeting.to);
-
         return AlertDialog(
-          // The title includes a pencil icon button
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Appointment Details'),
-              IconButton(
-                icon: const Icon(Icons.edit),
-                tooltip: 'Edit appointment times',
-                onPressed: () {
-                  Navigator.pop(context); // close this dialog first
-                  _showEditTimesDialog(meeting);
-                },
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit appointment times',
+                    onPressed: () {
+                      Navigator.pop(context); // close this dialog first
+                      _showEditTimesDialog(meeting);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: 'Delete appointment',
+                    onPressed: () {
+                      Navigator.pop(context); // close this dialog
+                      _confirmDeleteAppointment(meeting);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -484,10 +492,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               if (meeting.rejectionReason != null &&
                   meeting.rejectionReason!.isNotEmpty)
                 Text('Rejection Reason: ${meeting.rejectionReason}'),
-              const Divider(
-                height: 16,
-                thickness: 1,
-              ),
+              const Divider(thickness: 1, height: 16),
               Text('Start Time: $startTime'),
               Text('End Time: $endTime'),
             ],
@@ -496,6 +501,46 @@ class AppointmentSystemState extends State<AppointmentSystem> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Ask for confirmation and then mark the appointment as "deleted" in Firestore.
+  void _confirmDeleteAppointment(Meeting meeting) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Appointment'),
+          content: const Text('Are you sure you want to delete this appointment?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), // Cancel
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context); // close confirm dialog
+                if (meeting.key != null) {
+                  try {
+                    // Instead of doc.delete(), update Status to 'deleted'
+                    await databaseReference
+                        .collection("CalendarAppointmentCollection")
+                        .doc(meeting.key)
+                        .update({
+                      'Status': 'deleted',
+                      'DeletedBy': widget.loggedUserEmail,
+                      'DeletedOn': DateTime.now().toIso8601String(),
+                    });
+                  } catch (e) {
+                    debugPrint('Error marking appointment as deleted: $e');
+                  }
+                }
+              },
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -561,7 +606,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     subtitle: Text(
                       DateFormat.yMMMd().add_jm().format(newStartTime),
                     ),
-                    // Instead of the pencil icon, we now show "Edit" as a text button
                     trailing: TextButton(
                       onPressed: () => pickDateTime(true),
                       child: const Text('Edit'),
@@ -574,7 +618,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     subtitle: Text(
                       DateFormat.yMMMd().add_jm().format(newEndTime),
                     ),
-                    // Instead of the pencil icon, we now show "Edit" as a text button
                     trailing: TextButton(
                       onPressed: () => pickDateTime(false),
                       child: const Text('Edit'),
@@ -589,7 +632,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    // Optional: make sure newStartTime < newEndTime
+                    // Optional: validate newStartTime < newEndTime
                     if (newEndTime.isBefore(newStartTime)) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -599,7 +642,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       );
                       return;
                     }
-                    // Update Firestore for this meeting's doc
+                    // Update Firestore for this meeting
                     try {
                       if (meeting.key != null) {
                         await databaseReference
@@ -663,14 +706,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     Text(
                       'Your name: $_displayName',
                       style: const TextStyle(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.left,
                     ),
                   const SizedBox(height: 16),
                   if (_chaplains.isNotEmpty) ...[
                     const Text(
                       'Select Chaplain:',
                       style: TextStyle(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.left,
                     ),
                     const SizedBox(height: 8),
                     DropdownButton<String>(
@@ -682,7 +723,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                           value: chap["email"],
                           child: Text(
                             chap["displayName"] ?? "Unknown Chaplain",
-                            textAlign: TextAlign.left,
                           ),
                         );
                       }).toList(),
@@ -702,7 +742,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     const Text(
                       'No chaplains found!',
                       style: TextStyle(color: Colors.red),
-                      textAlign: TextAlign.left,
                     ),
                   ],
                   const SizedBox(height: 20),
@@ -739,7 +778,6 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   Text(
                     'Selected: ${DateFormat.yMMMd().add_jm().format(selectedTime)}',
                     style: const TextStyle(fontSize: 14),
-                    textAlign: TextAlign.left,
                   ),
                 ],
               );
