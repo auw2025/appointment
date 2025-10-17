@@ -1,5 +1,3 @@
-// appointment_system.dart
-
 import 'dart:async'; // Needed for StreamSubscription
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -134,58 +132,94 @@ class AppointmentSystemState extends State<AppointmentSystem> {
 
   /// Sets up a real-time listener for appointment documents in Firestore.
   void _setupRealTimeListener() {
-    _appointmentsSubscription = databaseReference
-        .collection("CalendarAppointmentCollection")
-        .snapshots()
-        .listen(
-      (querySnapshot) {
-        final Random random = Random();
+    // If user is chaplain, only listen to appointments where ChaplainEmail == user’s email
+    if (widget.userRole == 'chaplain') {
+      _appointmentsSubscription = databaseReference
+          .collection("CalendarAppointmentCollection")
+          .where("ChaplainEmail", isEqualTo: widget.loggedUserEmail)
+          .snapshots()
+          .listen(
+        (querySnapshot) {
+          _processQuerySnapshot(querySnapshot);
+        },
+        onError: (error) => debugPrint("Firestore snapshots error: $error"),
+      );
+    }
+    // If user is student, only listen to appointments where StudentEmail == user’s email
+    else if (widget.userRole == 'student') {
+      _appointmentsSubscription = databaseReference
+          .collection("CalendarAppointmentCollection")
+          .where("StudentEmail", isEqualTo: widget.loggedUserEmail)
+          .snapshots()
+          .listen(
+        (querySnapshot) {
+          _processQuerySnapshot(querySnapshot);
+        },
+        onError: (error) => debugPrint("Firestore snapshots error: $error"),
+      );
+    }
+    // If you have other roles (like "admin"), handle them as needed.
+    else {
+      // By default, or for other roles, you might want to fetch all
+      // or continue with the current approach.
+      _appointmentsSubscription = databaseReference
+          .collection("CalendarAppointmentCollection")
+          .snapshots()
+          .listen(
+        (querySnapshot) {
+          _processQuerySnapshot(querySnapshot);
+        },
+        onError: (error) => debugPrint("Firestore snapshots error: $error"),
+      );
+    }
+  }
 
-        // Convert snapshots to a List<Meeting>
-        List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
-          var meeting = Meeting.fromFireStoreDoc(
-            doc.id,
-            doc.data() as Map<String, dynamic>,
-            _colorCollection[random.nextInt(_colorCollection.length)],
-          );
+  /// Process the Firestore query snapshot (shared by chaplains and students).
+  void _processQuerySnapshot(QuerySnapshot querySnapshot) {
+    final Random random = Random();
 
-          // If the user is chaplain, override the subject to show the student's info.
-          if (widget.userRole == 'chaplain') {
-            meeting.subject =
-                'Appointment with ${meeting.studentName} '
-                '(${meeting.studentClassAndNumber ?? 'N/A'})';
-          }
-          return meeting;
-        }).toList();
+    // Convert snapshots to a List<Meeting>
+    List<Meeting> allMeetings = querySnapshot.docs.map((doc) {
+      var meeting = Meeting.fromFireStoreDoc(
+        doc.id,
+        doc.data() as Map<String, dynamic>,
+        _colorCollection[random.nextInt(_colorCollection.length)],
+      );
 
-        // Separate them by status, ignoring anything "deleted"
-        List<Meeting> accepted = [];
-        List<Meeting> pending = [];
-        List<Meeting> rejected = [];
+      // If the user is chaplain, override the subject to show the student's info.
+      if (widget.userRole == 'chaplain') {
+        meeting.subject =
+            'Appointment with ${meeting.studentName} '
+            '(${meeting.studentClassAndNumber ?? 'N/A'})';
+      }
+      return meeting;
+    }).toList();
 
-        for (var mtg in allMeetings) {
-          // skip 'deleted' appointments
-          if (mtg.status == 'deleted') {
-            continue;
-          } else if (mtg.status == 'accepted') {
-            accepted.add(mtg);
-          } else if (mtg.status == 'pending') {
-            pending.add(mtg);
-          } else if (mtg.status == 'rejected') {
-            rejected.add(mtg);
-          }
-        }
+    // Separate them by status, ignoring anything "deleted"
+    List<Meeting> accepted = [];
+    List<Meeting> pending = [];
+    List<Meeting> rejected = [];
 
-        if (mounted) {
-          setState(() {
-            events = MeetingDataSource(accepted);
-            _pendingMeetings = pending;
-            _rejectedMeetings = rejected;
-          });
-        }
-      },
-      onError: (error) => debugPrint("Firestore snapshots error: $error"),
-    );
+    for (var mtg in allMeetings) {
+      // skip 'deleted' appointments
+      if (mtg.status == 'deleted') {
+        continue;
+      } else if (mtg.status == 'accepted') {
+        accepted.add(mtg);
+      } else if (mtg.status == 'pending') {
+        pending.add(mtg);
+      } else if (mtg.status == 'rejected') {
+        rejected.add(mtg);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        events = MeetingDataSource(accepted);
+        _pendingMeetings = pending;
+        _rejectedMeetings = rejected;
+      });
+    }
   }
 
   /// Logout function to return to the login page.
@@ -374,7 +408,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   return Card(
                     child: ListTile(
                       title: Text('Request from ${meeting.studentName}'),
-                      subtitle: Text('Time: ${meeting.from}'),
+                      subtitle: Text('Time: ${DateFormat.yMMMd().add_jm().format(meeting.from)}'),
                       trailing: _buildRequestActions(meeting),
                     ),
                   );
@@ -823,6 +857,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     final endTime = startTime.add(const Duration(hours: 1));
     await databaseReference.collection("CalendarAppointmentCollection").add({
       'Subject': 'Appointment with $chaplainDisplayName',
+      'StudentEmail': widget.loggedUserEmail, // <--- ADDED
       'StudentName': studentName,
       'StudentClassNumber': _classNumber,
       'StudentClassAndNumber': '${_studentClass ?? 'N/A'} ${_classNumber ?? 'N/A'}',
