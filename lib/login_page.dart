@@ -51,30 +51,44 @@ class _LoginPageState extends State<LoginPage> {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
-      // Attempt login through Firestore
-      final role = await _userService.loginUser(
-        email: email,
-        password: password,
-      );
-
-      if (role != null) {
-        // If credentials are valid, save them locally for auto-fill
-        _saveCredentials(email, password);
-
-        // Navigate to AppointmentSystem, passing email + role
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AppointmentSystem(
-              loggedUserEmail: email,
-              userRole: role, // <-- pass the role we got from Firestore
-            ),
-          ),
+      try {
+        // Attempt login through Firestore
+        final role = await _userService.loginUser(
+          email: email,
+          password: password,
         );
-      } else {
-        // Display an error message if login fails.
+
+        if (role != null) {
+          // If credentials are valid, save them locally for auto-fill
+          await _saveCredentials(email, password);
+
+          // Navigate to AppointmentSystem, passing email + role
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AppointmentSystem(
+                loggedUserEmail: email,
+                userRole: role, // <-- pass the role we got from Firestore
+              ),
+            ),
+          );
+        } else {
+          // Log the error condition: login returned a null role.
+          debugPrint('Login failed: role is null for email: $email');
+
+          // Display an error message if login fails.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid email or password')),
+          );
+        }
+      } catch (e, stackTrace) {
+        // Log the error and its stack trace
+        debugPrint('An exception occurred during login: $e');
+        debugPrint('Stack trace: $stackTrace');
+
+        // Optionally, you can show a generic error message.
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid email or password')),
+          const SnackBar(content: Text('An error occurred during login. Please try again.')),
         );
       }
     }
