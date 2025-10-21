@@ -7,7 +7,8 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import 'appointment_model.dart';
 import 'login_page.dart';
-import 'change_password_page.dart'; // <-- Import the new change password page
+import 'change_password_page.dart';
+import 'chaplain_requirement_page.dart'; // <-- Import the new ChaplainRequirementPage
 
 class AppointmentSystem extends StatefulWidget {
   final String loggedUserEmail;
@@ -362,7 +363,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   const SizedBox(height: 8),
                   Text(
                     _requirementMessage!,
-                    style: TextStyle(fontSize: 15),
+                    style: const TextStyle(fontSize: 15),
                   ),
                   if (_requirementDeadline != null &&
                       _requirementDeadline!.isNotEmpty) ...[
@@ -372,7 +373,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
+                        color: Colors.red,
                       ),
                     ),
                   ],
@@ -422,7 +423,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     );
   }
 
-  /// Chaplain calendar with accepted appointments + pending requests.
+  /// Chaplain calendar with accepted appointments + pending requests + new button.
   Widget _buildChaplainCalendar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -468,13 +469,29 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                   return Card(
                     child: ListTile(
                       title: Text('Request from ${meeting.studentName}'),
-                      subtitle: Text('Time: ${DateFormat.yMMMd().add_jm().format(meeting.from)}'),
+                      subtitle:
+                          Text('Time: ${DateFormat.yMMMd().add_jm().format(meeting.from)}'),
                       trailing: _buildRequestActions(meeting),
                     ),
                   );
                 },
               ),
             ),
+          const SizedBox(height: 20),
+          // NEW BUTTON: Show Student Requirements
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChaplainRequirementPage(
+                    chaplainEmail: widget.loggedUserEmail,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Show Student Requirements'),
+          ),
         ],
       ),
     );
@@ -535,7 +552,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     }
   }
 
-  /// Show a dialog with the details of the tapped appointment, plus an edit pencil icon & bin icon for chaplains.
+  /// Show a dialog with the details of the tapped appointment, 
+  /// plus an edit pencil icon & bin icon for chaplains.
   void _showAppointmentDetailsDialog(Meeting meeting) {
     final String startTime = DateFormat.yMMMd().add_jm().format(meeting.from);
     final String endTime = DateFormat.yMMMd().add_jm().format(meeting.to);
@@ -609,7 +627,8 @@ class AppointmentSystemState extends State<AppointmentSystem> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Appointment'),
-          content: const Text('Are you sure you want to delete this appointment?'),
+          content:
+              const Text('Are you sure you want to delete this appointment?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context), // Cancel
@@ -730,8 +749,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
                     if (newEndTime.isBefore(newStartTime)) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content:
-                              Text('End time must be after the start time.'),
+                          content: Text('End time must be after the start time.'),
                         ),
                       );
                       return;
