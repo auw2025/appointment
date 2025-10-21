@@ -66,6 +66,14 @@ class AppointmentSystemState extends State<AppointmentSystem> {
   /// Subscription to Firestore changes for appointments.
   StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
 
+  // ------------ NEW FIELDS FOR THE REQUIREMENT ------------
+  /// Message describing the student's requirement (optional).
+  String? _requirementMessage;
+
+  /// Deadline or date by which the student must meet the chaplain (optional).
+  String? _requirementDeadline;
+  // ---------------------------------------------------------
+
   @override
   void initState() {
     super.initState();
@@ -82,7 +90,7 @@ class AppointmentSystemState extends State<AppointmentSystem> {
     super.dispose();
   }
 
-  /// Fetch the user's display name, class number, and class from Firestore.
+  /// Fetch the user's display name, class number, class, and requirement (if any).
   void _fetchUserDisplayName() async {
     try {
       QuerySnapshot userSnapshot = await databaseReference
@@ -97,6 +105,12 @@ class AppointmentSystemState extends State<AppointmentSystem> {
           _displayName = userData['displayName'];
           _classNumber = userData['classNumber']; // e.g., "23"
           _studentClass = userData['class'];       // e.g., "5J"
+
+          // Only if the user is a student, we fetch requirement data
+          if (widget.userRole == 'student') {
+            _requirementMessage = userData['requirementMessage'];
+            _requirementDeadline = userData['requirementDeadline'];
+          }
         });
       }
     } catch (e) {
@@ -322,6 +336,52 @@ class AppointmentSystemState extends State<AppointmentSystem> {
               backgroundColor: Colors.blueAccent,
             ),
           ),
+
+          // ------------ NEW REQUIREMENT MESSAGE ------------
+          if (_requirementMessage != null && _requirementMessage!.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Important Reminder",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _requirementMessage!,
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  if (_requirementDeadline != null &&
+                      _requirementDeadline!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      "Please fulfill this by: $_requirementDeadline",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          // ------------------------------------------------
+
           if (_rejectedMeetings.isNotEmpty) ...[
             const SizedBox(height: 30),
             const Text(
